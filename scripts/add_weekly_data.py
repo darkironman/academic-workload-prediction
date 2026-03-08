@@ -16,7 +16,7 @@ while True:
         conn = mysql.connector.connect(
             host="localhost",
             user="root",
-            password="yashironman1@",
+            password="YOUR_PASSWORD",
             database="academic_workload_db"
         )
         cursor = conn.cursor() 

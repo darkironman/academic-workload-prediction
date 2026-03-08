@@ -32,7 +32,7 @@ def get_connection():
     return mysql.connector.connect(
         host="localhost",
         user="root",
-        password="yashironman1@", 
+        password="YOUR_PASSWORD", 
         database="academic_workload_db"
     )
 
@@ -104,6 +104,28 @@ with col2:
     st.line_chart(
         trend_df.set_index("week_no")["workload_numeric"]
     )
+    st.markdown("### Exam Proximity Impact")
+
+exam_impact = activity_df.groupby("exam_proximity")["workload_label"].value_counts().unstack()
+
+exam_impact.index = ["No Exam Nearby", "Exam Nearby"]
+
+fig, ax = plt.subplots(figsize=(4,3))   
+
+exam_impact.plot(
+    kind="bar",
+    stacked=True,
+    ax=ax,
+    colormap="viridis"
+)
+
+ax.set_xlabel("Exam Status")
+ax.set_ylabel("Count")
+ax.set_title("Exam vs Workload")
+
+plt.xticks(rotation=0)
+
+st.pyplot(fig, use_container_width=False)   
 
 st.divider()
 

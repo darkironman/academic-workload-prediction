@@ -8,6 +8,8 @@ import pandas as pd
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, precision_score, recall_score
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
 import pickle
 import os
 from datetime import datetime
@@ -15,7 +17,7 @@ from datetime import datetime
 conn = mysql.connector.connect(
     host="localhost",
     user="root",
-    password="yashironman1@",
+    password="YOUR_PASSWORD",
     database="academic_workload_db"
 )
 # Fetch academic activity data required for training
@@ -53,7 +55,18 @@ X_train, X_test, y_train, y_test = train_test_split(
 )
 
 # Train Logistic Regression classification model
-model = LogisticRegression(max_iter=200)
+# -------------------------------
+# 6. Build ML Pipeline (Preprocessing + Model)
+# -------------------------------
+
+model = Pipeline([
+    ("scaler", StandardScaler()),
+    ("classifier", LogisticRegression(
+        max_iter=200,
+        class_weight="balanced"
+    ))
+])
+
 model.fit(X_train, y_train)
 
 # Evaluate model performance on test data
