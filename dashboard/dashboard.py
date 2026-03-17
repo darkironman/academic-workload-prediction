@@ -1,136 +1,181 @@
-# Import required libraries
-# streamlit → to build the web dashboard
-# mysql.connector → to connect Python with MySQL database
-# pandas → to work with data
-# pickle → to load saved ML model
-# os → to work with files/folders
-# matplotlib → for pie chart visualization
-
 import streamlit as st
 import mysql.connector
 import pandas as pd
 import pickle
 import os
-import matplotlib.pyplot as plt
 
+st.set_page_config(page_title="Workload System", layout="wide")
 
-# Set page configuration (title and layout)
-st.set_page_config(
-    page_title="Academic Workload Monitoring System",
-    layout="wide"
-)
+# Theme colors
+bg = "#0E1117" 
+card = "#161B22" 
+text =  "#000000"
+border = "#2A2F36" 
 
-# Main dashboard title and description
-st.title(" Academic Workload Monitoring System")
-st.caption("Real-time academic tracking and workload prediction")
-st.divider()
+# Custom styling
+st.markdown(f"""
+<style>
+body {{ background-color:{bg}; color:{text}; }}
+.card {{
+    background:{card};
+    padding:20px;
+    border-radius:12px;
+    border:1px solid {border};
+    margin-bottom:15px;
+}}
+</style>
+""", unsafe_allow_html=True)
 
-
-# Function to connect to MySQL database
-# This will be used whenever we need database access
+# DB connection function
 def get_connection():
     return mysql.connector.connect(
         host="localhost",
         user="root",
-        password="YOUR_PASSWORD", 
+        password="yashironman1@",
         database="academic_workload_db"
     )
-
-
-# Connect to database
+# DB connection function
 conn = get_connection()
-
-# Fetch all academic activity data (latest week first)
-activity_df = pd.read_sql(
-    "SELECT * FROM academic_activity ORDER BY week_no DESC",
-    conn
-)
-
-# Fetch latest model performance details
-metadata_df = pd.read_sql(
-    "SELECT * FROM model_metadata ORDER BY trained_on DESC LIMIT 1",
-    conn
-)
-
-# Close connection after fetching data
+activity_df = pd.read_sql("SELECT * FROM academic_activity ORDER BY week_no DESC", conn)
+metadata_df = pd.read_sql("SELECT * FROM model_metadata ORDER BY trained_on DESC", conn)
 conn.close()
 
-
-st.subheader(" Overview")
-
-# Create 4 metric columns
-c1, c2, c3, c4 = st.columns(4)
-
-# Display summary statistics
-c1.metric("Total Weeks", len(activity_df))
-c2.metric("Avg Assignments", round(activity_df["assignments_count"].mean(), 2))
-c3.metric("Avg Quizzes", round(activity_df["quizzes_count"].mean(), 2))
-c4.metric("Latest Week", activity_df["week_no"].max())
-
+# Title
+st.title(" Academic Workload Monitoring System")
 st.divider()
 
-st.subheader(" Academic Analytics")
+# Tabs
+tab1, tab2, tab3 = st.tabs([" System Overview", " Analysis", " Prediction"])
 
-col1, col2 = st.columns(2)
+# SYSTEM OVERVIEW
+with tab1:
+
+    # INTRO 
+    st.markdown("""
+    <div class="card">
+    <b> Academic Workload Monitoring System</b><br><br>
+    This project is designed to track and predict student academic workload 
+    using machine learning. It helps students understand how heavy their 
+    upcoming week will be based on assignments, quizzes, and exams.
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="card">
+    <b> How the System Works</b><br><br>
+    • Weekly academic data is collected from students<br>
+    • Features include assignments, quizzes, exam proximity, and past workload<br>
+    • A trained ML model analyzes patterns in this data<br>
+    • The system predicts workload as Low, Medium, or High<br>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="card">
+    <b> Why This Project Matters</b><br><br>
+    Many students face stress due to poor workload planning.  
+    This system gives early warning so students can manage time better, 
+    reduce stress, and improve performance.
+    </div>
+    """, unsafe_allow_html=True)
+
+    # STATS
+    st.subheader(" Dataset Overview")
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Total Weeks", len(activity_df))
+    c2.metric("Avg Assignments", round(activity_df["assignments_count"].mean(), 2))
+    c3.metric("Avg Quizzes", round(activity_df["quizzes_count"].mean(), 2))
+    c4.metric("Latest Week", activity_df["week_no"].max())
+
+    # DATA PREVIEW
+    #  
+    st.subheader(" Dataset Sample")
+    st.dataframe(activity_df.head(10), use_container_width=True)
+
+    # MODEL INFO 
+    st.subheader(" Model Used")
+
+    st.markdown("""
+    <div class="card">
+    The system uses two machine learning models:<br><br>
+    • Logistic Regression → for stable predictions<br>
+    • Decision Tree → for rule-based understanding<br><br>
+    The latest trained model is automatically used during prediction.
+    </div>
+    """, unsafe_allow_html=True)
 
 
-# Left side: Workload distribution pie chart
-with col1:
-    st.markdown("### Workload Distribution")
+#  ANALYSIS
+with tab2:
 
-    # Count how many Low / Medium / High
-    dist = activity_df["workload_label"].value_counts()
+    col1, col2 = st.columns(2)
 
-    # Create pie chart
-    fig, ax = plt.subplots()
-    ax.pie(dist, labels=dist.index, autopct="%1.1f%%")
-    ax.set_title("Workload Levels")
+    with col1:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
 
-    st.pyplot(fig)
+        trend_df = activity_df.sort_values("week_no").tail(100)
+        mapping = {"Low":1,"Medium":2,"High":3}
+        trend_df["num"] = trend_df["workload_label"].map(mapping)
 
+        st.subheader("Workload Trend (Recent)")
+        st.line_chart(trend_df.set_index("week_no")["num"])
 
-# Right side: Workload trend over weeks
-with col2:
-    st.markdown("### Workload Trend")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    # Sort data by week number
-    trend_df = activity_df.sort_values("week_no")
+    # EXAM IMPACT
+    with col2:
+        st.markdown('<div class="card">', unsafe_allow_html=True)
 
-    # Convert workload labels into numbers for plotting
-    mapping = {"Low": 1, "Medium": 2, "High": 3}
-    trend_df["workload_numeric"] = trend_df["workload_label"].map(mapping)
+        exam = activity_df.groupby("exam_proximity")["workload_label"].value_counts().unstack()
+        exam.index = ["No Exam", "Exam Nearby"]
 
-    # Show line chart
-    st.line_chart(
-        trend_df.set_index("week_no")["workload_numeric"]
+        st.subheader("Exam Impact")
+        st.bar_chart(exam)
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    #  MODEL GROWTH
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.subheader("Model Growth")
+
+    if not metadata_df.empty:
+        st.line_chart(metadata_df.set_index("trained_on")["accuracy"])
+    else:
+        st.info("No training history")
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    #  DATA DRIFT 
+    st.markdown('<div class="card">', unsafe_allow_html=True)
+    st.subheader("Data Drift Check")
+
+    recent = activity_df.head(50)["workload_label"].value_counts()
+    old = activity_df.tail(50)["workload_label"].value_counts()
+
+    c1, c2 = st.columns(2)
+    c1.write("Recent Data")
+    c1.bar_chart(recent)
+
+    c2.write("Old Data")
+    c2.bar_chart(old)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+#  
+# PREDICTION
+with tab3:
+
+    st.subheader("Select Model")
+
+    model_choice = st.selectbox(
+        "Choose Model",
+        ["Logistic Regression", "Decision Tree"]
     )
-    st.markdown("### Exam Proximity Impact")
 
-exam_impact = activity_df.groupby("exam_proximity")["workload_label"].value_counts().unstack()
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    MODEL_DIR = os.path.join(BASE_DIR, "..", "models")
 
-exam_impact.index = ["No Exam Nearby", "Exam Nearby"]
-
-fig, ax = plt.subplots(figsize=(4,3))   
-
-exam_impact.plot(
-    kind="bar",
-    stacked=True,
-    ax=ax,
-    colormap="viridis"
-)
-
-ax.set_xlabel("Exam Status")
-ax.set_ylabel("Count")
-ax.set_title("Exam vs Workload")
-
-plt.xticks(rotation=0)
-
-st.pyplot(fig, use_container_width=False)   
-
-st.divider()
-
-st.subheader(" Predict Upcoming Workload")
-
+# Model path
 # Load latest trained model from models folder
 model_files = [
     os.path.join("models", f)
@@ -151,118 +196,50 @@ with open(latest_model, "rb") as f:
     model = pickle.load(f)
 
 
-# Create input fields for user
-col1, col2, col3, col4 = st.columns(4)
+    # INPUT
+    c1, c2, c3, c4 = st.columns(4)
 
-with col1:
-    assignments = st.number_input("Assignments", 0, 10, 2)
+    assignments = c1.number_input("Assignments", 0, 10, 2)
+    quizzes = c2.number_input("Quizzes", 0, 5, 1)
+    exam = c3.selectbox("Exam Nearby", [0,1], format_func=lambda x: "Yes" if x else "No")
+    prev = c4.selectbox("Previous Workload", [1,2,3],
+                        format_func=lambda x: {1:"Low",2:"Medium",3:"High"}[x])
 
-with col2:
-    quizzes = st.number_input("Quizzes", 0, 5, 1)
+    # Predict button
+    if st.button("Predict"):
 
-with col3:
-    exam = st.selectbox("Exam Nearby?", [0, 1])
+# Create input
+        inp = pd.DataFrame([{
+            "assignments_count": assignments,
+            "quizzes_count": quizzes,
+            "exam_proximity": exam,
+            "previous_workload": prev
+        }])
 
-with col4:
-    prev_workload = st.selectbox("Previous Workload", [1, 2, 3])
+        pred = model.predict(inp)[0]
+        prob = max(model.predict_proba(inp)[0]) * 100
 
-
-# When user clicks Predict button
-if st.button("Predict Workload"):
-
-    # Create input dataframe for model
-    input_df = pd.DataFrame([{
-        "assignments_count": assignments,
-        "quizzes_count": quizzes,
-        "exam_proximity": exam,
-        "previous_workload": prev_workload
-    }])
-
-    # Get prediction
-    prediction = model.predict(input_df)[0]
-
-    # Get probability confidence
-    probabilities = model.predict_proba(input_df)[0]
-    confidence = round(max(probabilities) * 100, 2)
-
-    # Show prediction result
-    if prediction == "High":
-        st.error(f"Predicted Workload: {prediction}")
-    elif prediction == "Medium":
-        st.warning(f"Predicted Workload: {prediction}")
-    else:
-        st.success(f"Predicted Workload: {prediction}")
-
-    # Show confidence score
-    st.info(f"Model Confidence: {confidence}%")
-
-    # Save prediction into database
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute(
-        """
-        INSERT INTO weekly_predictions (week_no, predicted_workload)
-        VALUES (%s, %s)
-        """,
-        (int(activity_df["week_no"].max()) + 1, str(prediction))
-    )
-
-    conn.commit()
-    conn.close()
-
-st.divider()
-
-st.subheader(" Model Performance")
-
-if not metadata_df.empty:
-
-    # Display model metrics
-    m1, m2, m3, m4 = st.columns(4)
-
-    m1.metric("Accuracy", metadata_df["accuracy"][0])
-    m2.metric("Precision", metadata_df["precision_score"][0])
-    m3.metric("Recall", metadata_df["recall_score"][0])
-
-    # Calculate F1 score manually
-    f1 = round(
-        (2 * metadata_df["precision_score"][0] * metadata_df["recall_score"][0]) /
-        (metadata_df["precision_score"][0] + metadata_df["recall_score"][0] + 0.0001),
-        2
-    )
-
-    m4.metric("F1 Score", f1)
-
-    st.caption(f"Last Trained On: {metadata_df['trained_on'][0]}")
-
-else:
-    st.info("No model performance data available.")
+# Color based on result
+        color = "#ff4d4d" if pred=="High" else "#ffc107" if pred=="Medium" else "#4caf50"
 
 
-# Show accuracy trend over time
-conn = get_connection()
-history_df = pd.read_sql(
-    "SELECT trained_on, accuracy FROM model_metadata ORDER BY trained_on ASC",
-    conn
-)
-conn.close()
+        # Show result
+        st.markdown(f"""
+        <div style="background:{card};padding:20px;border-left:6px solid {color}">
+        <b>Model:</b> {model_choice} <br>
+        <b>Prediction:</b> {pred} <br>
+        <b>Confidence:</b> {prob:.1f}%
+        </div>
+        """, unsafe_allow_html=True)
 
-if not history_df.empty:
-    st.markdown("### Accuracy Over Time")
-    st.line_chart(history_df.set_index("trained_on")["accuracy"])
+        st.progress(prob/100)
 
-st.divider()
-
-st.subheader(" Recent Predictions")
-
-conn = get_connection()
-pred_df = pd.read_sql(
-    "SELECT * FROM weekly_predictions ORDER BY week_no DESC LIMIT 10",
-    conn
-)
-conn.close()
-
-# Display last 10 predictions
-st.dataframe(pred_df, use_container_width=True)
-
-
+        # SAVE prediction
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO weekly_predictions (week_no, predicted_workload) VALUES (%s, %s)",
+            (int(activity_df["week_no"].max()) + 1, str(pred))
+        )
+        conn.commit()
+        conn.close()

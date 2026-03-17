@@ -1,64 +1,45 @@
-# train_model.py
-# This script trains the academic workload prediction model
-# using data stored in MySQL and saves the trained model
-# along with its performance metrics
+import mysql.connector              
+import pandas as pd                
+from sklearn.model_selection import train_test_split  
+from sklearn.metrics import accuracy_score, precision_score, recall_score  
+from sklearn.linear_model import LogisticRegression  
+from sklearn.tree import DecisionTreeClassifier     
+from sklearn.pipeline import Pipeline                
+from sklearn.preprocessing import StandardScaler     
+import pickle                                        
+import os                                            
+from datetime import datetime                        
 
-import mysql.connector
-import pandas as pd
-from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, precision_score, recall_score
-from sklearn.preprocessing import StandardScaler
-from sklearn.pipeline import Pipeline
-import pickle
-import os
-from datetime import datetime
-# Connect to the academic workload database
+# ---------------- LOAD DATA ----------------
 conn = mysql.connector.connect(
     host="localhost",
     user="root",
-    password="YOUR_PASSWORD",
+    password="yashironman1@",
     database="academic_workload_db"
 )
-# Fetch academic activity data required for training
-query = """
-SELECT
-    assignments_count,
-    quizzes_count,
-    exam_proximity,
-    previous_workload,
-    workload_label
-FROM academic_activity
-"""
 
-df = pd.read_sql(query, conn)
+df = pd.read_sql("""
+SELECT assignments_count, quizzes_count, exam_proximity, previous_workload, workload_label
+FROM academic_activity
+""", conn)
+
 conn.close()
 
-# Remove records where workload label is missing
-df = df.dropna(subset=["workload_label"])
+# ---------------- PREPROCESSING ----------------
+df = df.dropna()
+df = df.drop_duplicates()
+df = df.sample(frac=1, random_state=42)
 
-# Separate input features and target variable
-X = df[
-    [
-        "assignments_count",
-        "quizzes_count",
-        "exam_proximity",
-        "previous_workload"
-    ]
-]
-
+# ---------------- FEATURES ----------------
+X = df[["assignments_count","quizzes_count","exam_proximity","previous_workload"]]
 y = df["workload_label"]
 
-# Split data into training and testing sets
+# ---------------- SPLIT ----------------
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42
 )
 
-# Train Logistic Regression classification model
-# -------------------------------
-# 6. Build ML Pipeline (Preprocessing + Model)
-# -------------------------------
-
+# ---------------- LOGISTIC MODEL ----------------
 model = Pipeline([
     ("scaler", StandardScaler()),
     ("classifier", LogisticRegression(
@@ -69,30 +50,36 @@ model = Pipeline([
 
 model.fit(X_train, y_train)
 
-# Evaluate model performance on test data
 y_pred = model.predict(X_test)
 
 accuracy = accuracy_score(y_test, y_pred)
 precision = precision_score(y_test, y_pred, average="weighted", zero_division=0)
 recall = recall_score(y_test, y_pred, average="weighted", zero_division=0)
 
-print("\nModel Performance")
-print(f"Accuracy  : {accuracy:.2f}")
-print(f"Precision : {precision:.2f}")
-print(f"Recall    : {recall:.2f}")
+# ---------------- DECISION TREE (ONLY FOR COMPARISON) ----------------
+tree_model = DecisionTreeClassifier(max_depth=5)
+tree_model.fit(X_train, y_train)
 
-# Save trained model with timestamp for version control
+tree_pred = tree_model.predict(X_test)
+tree_accuracy = accuracy_score(y_test, tree_pred)
+
+# ---------------- PRINT RESULTS ----------------
+print("\nModel Comparison")
+print(f"Logistic Accuracy: {accuracy:.2f}")
+print(f"Decision Tree Accuracy: {tree_accuracy:.2f}")
+
+# ---------------- SAVE MODEL (ONLY LOGISTIC) ----------------
 os.makedirs("models", exist_ok=True)
 
 timestamp = datetime.now().strftime("%Y%m%d_%H%M")
 model_path = f"models/workload_model_{timestamp}.pkl"
 
 with open(model_path, "wb") as f:
-    pickle.dump(model, f)
+    pickle.dump(model, f)   # ✅ simple save (NO ERROR)
 
 print(f"\nModel saved as: {model_path}")
 
-# Store model performance details in database
+# ---------------- SAVE METADATA ----------------
 conn = mysql.connector.connect(
     host="localhost",
     user="root",
@@ -102,22 +89,18 @@ conn = mysql.connector.connect(
 
 cursor = conn.cursor()
 
-cursor.execute(
-    """
-    INSERT INTO model_metadata (model_version, accuracy, precision_score, recall_score)
-    VALUES (%s, %s, %s, %s)
-    """,
-    (
-        timestamp,
-        round(accuracy, 2),
-        round(precision, 2),
-        round(recall, 2),
-    ),
-)
+cursor.execute("""
+INSERT INTO model_metadata (model_version, accuracy, precision_score, recall_score)
+VALUES (%s, %s, %s, %s)
+""", (
+    timestamp,
+    float(accuracy),
+    float(precision),
+    float(recall)
+))
 
 conn.commit()
 conn.close()
 
-print("Model metadata stored in database")
-print("Training completed successfully ")
-
+print("Metadata stored successfully")
+print("Training completed successfully")
