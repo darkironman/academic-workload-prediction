@@ -16,7 +16,7 @@ conn = mysql.connector.connect(
     password="yashironman1@",
     database="academic_workload_db"
 )
-
+ 
 df = pd.read_sql("""
 SELECT assignments_count, quizzes_count, exam_proximity, previous_workload, workload_label
 FROM academic_activity
@@ -27,21 +27,33 @@ conn.close()
 # PREPROCESSING 
 df = df.dropna()
 df = df.drop_duplicates()
+
+label_fix = {
+    "1": "Low",
+    "2": "Medium",
+    "3": "High",
+    "Low": "Low",
+    "Medium": "Medium",
+    "High": "High"
+}
+df["workload_label"] = df["workload_label"].map(label_fix)
+df = df.dropna(subset=["workload_label"]) 
+
 df = df.sample(frac=1, random_state=42)
 
 # FEATURES
-X = df[["assignments_count","quizzes_count","exam_proximity","previous_workload"]]
+X = df[["assignments_count", "quizzes_count", "exam_proximity"]]
 y = df["workload_label"]
 
 X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
+    X, y, test_size=0.2, random_state=42, stratify=y
 )
 
 # LOGISTIC MODEL
 model = Pipeline([
     ("scaler", StandardScaler()),
     ("classifier", LogisticRegression(
-        max_iter=200,
+        max_iter=500,
         class_weight="balanced"
     ))
 ])
@@ -55,18 +67,18 @@ precision = precision_score(y_test, y_pred, average="weighted", zero_division=0)
 recall = recall_score(y_test, y_pred, average="weighted", zero_division=0)
 
 # DECISION TREE
-tree_model = DecisionTreeClassifier(max_depth=5)
+tree_model = DecisionTreeClassifier(max_depth=5, class_weight="balanced")
 tree_model.fit(X_train, y_train)
 
 tree_pred = tree_model.predict(X_test)
 tree_accuracy = accuracy_score(y_test, tree_pred)
 
-#  PRINT RESULTS
+# PRINT RESULTS
 print("\nModel Comparison")
-print(f"Logistic Accuracy: {accuracy:.2f}")
-print(f"Decision Tree Accuracy: {tree_accuracy:.2f}")
+print(f"Logistic Accuracy:     {accuracy:.2f}")
+print(f"Decision Tree Accuracy:{tree_accuracy:.2f}")
 
-# SAVE MODEL
+# SAVE MODEL (latest trained = Logistic Regression, saved as always)
 os.makedirs("models", exist_ok=True)
 
 timestamp = datetime.now().strftime("%Y%m%d_%H%M")
